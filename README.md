@@ -20,4 +20,5 @@ Next engineering layer:
 4. API
 5. Persistent requests/quotes/bookings
 6. Admin verification/moderation
-7. Real messaging
+7. 
+8. Real messaging
