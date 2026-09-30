@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NaijaHelp — Customer App</title>
+<script src="js/api.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,sans-serif;background:#f6f7f9;color:#111827}
+header{background:#111827;color:white;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+.logo{font-weight:800;font-size:20px}.pill{border:0;border-radius:999px;padding:8px 12px;background:#fff;color:#111827}
+main{max-width:1000px;margin:0 auto;padding:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px;box-shadow:0 2px 10px #00000008}
+h1,h2,h3{margin-top:0}.muted{color:#6b7280}.row{display:flex;gap:10px;flex-wrap:wrap}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font:inherit}
+button{padding:11px 14px;border:0;border-radius:10px;background:#111827;color:white;font-weight:700;cursor:pointer}
+button.secondary{background:#e5e7eb;color:#111827}button.success{background:#166534}
+label{display:block;font-size:13px;font-weight:700;margin:10px 0 6px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.screen{display:none}.screen.active{display:block}
+.provider{border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-top:10px}
+.status{display:inline-block;padding:5px 9px;border-radius:999px;background:#eef2ff;font-size:12px;font-weight:700}
+#error{position:fixed;bottom:16px;left:16px;right:16px;background:#991b1b;color:#fff;padding:12px;border-radius:10px;display:none}
+</style>
+</head>
+<body>
+<header><div class="logo">NaijaHelp 🇳🇬</div><button class="pill" id="accountBtn">Sign in</button></header>
+<main>
+<nav>
+<button data-go="home">Home</button>
+<button data-go="search">Find a Provider</button>
+<button data-go="request">Request Service</button>
+<button data-go="jobs">My Jobs</button>
+</nav>
+
+<section id="home" class="screen active">
+<div class="card">
+<h1>Find trusted local help</h1>
+<p class="muted">Search by service and location across Nigeria.</p>
+<div class="grid">
+<div><label>Service</label><select id="homeService"></select></div>
+<div><label>State</label><select id="homeState"></select></div>
+</div>
+<br><button id="findBtn">Find Providers</button>
+</div>
+</section>
+
+<section id="search" class="screen">
+<div class="card"><h2>Providers</h2><div id="providers">Choose a service and location on Home.</div></div>
+</section>
+
+<section id="request" class="screen">
+<div class="card">
+<h2>Request a service</h2>
+<p class="muted">Your request can receive quotes from providers.</p>
+<label>Service</label><select id="reqService"></select>
+<label>State</label><select id="reqState"></select>
+<label>LGA (optional)</label><select id="reqLga"><option value="">Select LGA</option></select>
+<label>Area (optional)</label><select id="reqArea"><option value="">Select area</option></select>
+<label>Title</label><input id="reqTitle" placeholder="e.g. Fix leaking kitchen pipe">
+<label>Description</label><textarea id="reqDesc" rows="4" placeholder="Describe what you need"></textarea>
+<div class="grid"><div><label>Minimum budget (₦)</label><input id="minBudget" type="number"></div><div><label>Maximum budget (₦)</label><input id="maxBudget" type="number"></div></div>
+<br><button id="submitRequest">Submit Request</button>
+</div>
+</section>
+
+<section id="jobs" class="screen">
+<div class="card"><h2>My Requests & Jobs</h2><div id="jobsList">Sign in to view your requests.</div></div>
+</section>
+
+<section id="account" class="screen">
+<div class="card" id="authCard">
+<h2>Sign in</h2>
+<label>Email</label><input id="email" type="email">
+<label>Password</label><input id="password" type="password">
+<br><button id="login">Sign in</button>
+<hr>
+<h3>Create customer account</h3>
+<label>Full name</label><input id="fullName">
+<label>Email</label><input id="regEmail" type="email">
+<label>Password</label><input id="regPassword" type="password">
+<br><button id="register" class="secondary">Create account</button>
+</div>
+<div id="loggedCard" style="display:none" class="card">
+<h2>Account</h2><p id="who"></p><button id="logout" class="secondary">Sign out</button>
+</div>
+</section>
+</main>
+<div id="error"></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const state={states:[],categories:[],services:[]};
+function show(id){document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));$(id).classList.add("active")}
+function error(e){const el=$("error");el.textContent=e.message||String(e);el.style.display="block";setTimeout(()=>el.style.display="none",5000)}
+function fill(sel,items,placeholder,label="name"){sel.innerHTML=`<option value="">${placeholder}</option>`+items.map(x=>`<option value="${x.id}">${x[label]}</option>`).join("")}
+function logged(){return !!localStorage.getItem("naijahelp_token")}
+function refreshAccount(){
+ $("accountBtn").textContent=logged()?"Account":"Sign in";
+ $("authCard").style.display=logged()?"none":"block";$("loggedCard").style.display=logged()?"block":"none";
+ $("who").textContent=localStorage.getItem("naijahelp_email")||"Signed in";
+}
+async function boot(){
+ try{
+  state.states=await NaijaHelpAPI.states();
+  state.categories=await NaijaHelpAPI.categories();
+  state.services=state.categories.flatMap(c=>c.services);
+  document.querySelectorAll("#homeState,#reqState").forEach(s=>fill(s,state.states,"Select state"));
+  document.querySelectorAll("#homeService,#reqService").forEach(s=>fill(s,state.services,"Select service"));
+  refreshAccount();
+ }catch(e){error(e)}
+}
+$("accountBtn").onclick=()=>show("account");
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>show(b.dataset.go));
+$("homeState").onchange=()=>{};
+$("reqState").onchange=async e=>{
+ $("reqLga").innerHTML='<option value="">Loading…</option>'; $("reqArea").innerHTML='<option value="">Select area</option>';
+ if(!e.target.value){$("reqLga").innerHTML='<option value="">Select LGA</option>';return}
+ try{fill($("reqLga"),await NaijaHelpAPI.lgas(e.target.value),"Select LGA")}catch(err){error(err)}
+};
+$("reqLga").onchange=async e=>{
+ if(!e.target.value){$("reqArea").innerHTML='<option value="">Select area</option>';return}
+ try{fill($("reqArea"),await NaijaHelpAPI.areas(e.target.value),"Select area")}catch(err){error(err)}
+};
+$("findBtn").onclick=async()=>{
+ show("search");
+ try{
+  const ps=await NaijaHelpAPI.providers({serviceId:$("homeService").value,stateId:$("homeState").value});
+  $("providers").innerHTML=ps.length?ps.map(p=>`<div class="provider"><h3>${p.businessName}</h3><span class="status">${p.verificationStatus}</span><p class="muted">Rating: ${Number(p.rating).toFixed(1)} (${p.reviewCount} reviews)</p><p>${p.bio||"Local service provider"}</p></div>`).join(""):"<p class='muted'>No verified providers match these filters yet.</p>";
+ }catch(e){error(e)}
+};
+$("submitRequest").onclick=async()=>{
+ if(!logged()){show("account");return error(new Error("Please sign in before creating a request."))}
+ try{
+  const payload={serviceId:$("reqService").value,stateId:$("reqState").value||undefined,lgaId:$("reqLga").value||undefined,areaId:$("reqArea").value||undefined,title:$("reqTitle").value,description:$("reqDesc").value,budgetMin:$("minBudget").value?Number($("minBudget").value):undefined,budgetMax:$("maxBudget").value?Number($("maxBudget").value):undefined};
+  const r=await NaijaHelpAPI.createRequest(payload); alert("Request created: "+r.id); await loadJobs(); show("jobs");
+ }catch(e){error(e)}
+};
+async function loadJobs(){
+ if(!logged()){ $("jobsList").innerHTML="Sign in to view your requests.";return}
+ try{
+  const rs=await NaijaHelpAPI.requests();
+  $("jobsList").innerHTML=rs.length?rs.map(r=>`<div class="provider"><h3>${r.title}</h3><span class="status">${r.status}</span><p>${r.description}</p>${r.quotes?.length?`<p><b>Quotes: ${r.quotes.length}</b></p>`+r.quotes.map(q=>`<div class="provider"><b>₦${q.amount.toLocaleString()}</b> — ${q.provider.businessName}<br><button onclick="acceptQuote('${q.id}')">Accept quote</button></div>`).join(""):"<p class='muted'>Waiting for provider quotes.</p>"}</div>`).join(""):"<p class='muted'>No requests yet.</p>";
+ }catch(e){error(e)}
+}
+window.acceptQuote=async id=>{try{await NaijaHelpAPI.acceptQuote(id);await loadJobs();}catch(e){error(e)}};
+$("login").onclick=async()=>{
+ try{const r=await NaijaHelpAPI.login({email:$("email").value,password:$("password").value});localStorage.setItem("naijahelp_token",r.token);localStorage.setItem("naijahelp_email",r.user.email);refreshAccount();await loadJobs();show("jobs")}catch(e){error(e)}
+};
+$("register").onclick=async()=>{
+ try{const r=await NaijaHelpAPI.register({email:$("regEmail").value,password:$("regPassword").value,role:"CUSTOMER",fullName:$("fullName").value});localStorage.setItem("naijahelp_token",r.token);localStorage.setItem("naijahelp_email",r.user.email);refreshAccount();show("home")}catch(e){error(e)}
+};
+$("logout").onclick=()=>{localStorage.removeItem("naijahelp_token");localStorage.removeItem("naijahelp_email");refreshAccount();show("home")};
+boot();loadJobs();
+</script>
+</body>
+</html>

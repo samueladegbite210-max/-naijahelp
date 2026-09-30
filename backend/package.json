@@ -1,0 +1,38 @@
+{
+  "name": "naijahelp-api",
+  "version": "1.4.0-staging",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "seed": "tsx prisma/seed.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "smoke": "node ../scripts/smoke-test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "bcryptjs": "3.0.2",
+    "cors": "2.8.5",
+    "dotenv": "16.6.1",
+    "express": "5.1.0",
+    "helmet": "8.1.0",
+    "jsonwebtoken": "9.0.2",
+    "socket.io": "4.8.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.3",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/node": "22.15.30",
+    "prisma": "6.19.0",
+    "tsx": "4.20.3",
+    "typescript": "5.9.2"
+  }
+}

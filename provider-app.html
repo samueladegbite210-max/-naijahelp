@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NaijaHelp — Provider App</title>
+<script src="js/api.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f6f7f9;color:#111827}
+header{background:#111827;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+.logo{font-weight:800;font-size:20px}.pill{border:0;border-radius:999px;padding:8px 12px;background:#fff;color:#111827}
+main{max-width:1050px;margin:auto;padding:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px;margin-bottom:16px;box-shadow:0 2px 10px #00000008}
+h1,h2,h3{margin-top:0}.muted{color:#6b7280}.row{display:flex;gap:10px;flex-wrap:wrap}
+input,select,textarea{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font:inherit}
+button{padding:11px 14px;border:0;border-radius:10px;background:#111827;color:white;font-weight:700;cursor:pointer}
+button.secondary{background:#e5e7eb;color:#111827}button.success{background:#166534}
+label{display:block;font-size:13px;font-weight:700;margin:10px 0 6px}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.screen{display:none}.screen.active{display:block}
+.checkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.check{padding:10px;border:1px solid #e5e7eb;border-radius:10px;background:#fafafa}
+.req{border:1px solid #e5e7eb;border-radius:12px;padding:15px;margin-top:10px}
+.status{display:inline-block;padding:5px 9px;border-radius:999px;background:#eef2ff;font-size:12px;font-weight:700}
+#error{position:fixed;bottom:16px;left:16px;right:16px;background:#991b1b;color:#fff;padding:12px;border-radius:10px;display:none;z-index:20}
+</style>
+</head>
+<body>
+<header><div class="logo">NaijaHelp Provider 🇳🇬</div><button class="pill" id="accountBtn">Sign in</button></header>
+<main>
+<nav>
+<button data-go="dashboard">Dashboard</button>
+<button data-go="setup">My Profile</button>
+<button data-go="requests">Customer Requests</button>
+<button data-go="jobs">My Jobs</button>
+</nav>
+
+<section id="dashboard" class="screen active">
+<div class="card"><h1>Provider Dashboard</h1><p class="muted">Find customers who need the services you offer.</p>
+<div class="grid">
+<div><h3>Profile</h3><p id="profileSummary">Sign in to load your profile.</p></div>
+<div><h3>Marketplace</h3><p id="requestSummary">Loading customer opportunities…</p></div>
+</div></div>
+</section>
+
+<section id="setup" class="screen">
+<div class="card"><h2>Provider profile</h2>
+<label>Business name</label><input id="businessName" placeholder="e.g. Ade Electrical Services">
+<label>About your business</label><textarea id="bio" rows="4" placeholder="Tell customers what you do"></textarea>
+<h3>Services you offer</h3><div id="services" class="checkgrid">Loading…</div>
+<h3>States you serve</h3><div id="states" class="checkgrid">Loading…</div>
+<br><button id="saveProfile">Save provider setup</button>
+</div></section>
+
+<section id="requests" class="screen">
+<div class="card"><h2>Open customer requests</h2><p class="muted">Requests matching your selected service areas appear here.</p><div id="requestList">Loading…</div></div>
+</section>
+
+<section id="jobs" class="screen">
+<div class="card"><h2>My accepted jobs</h2><div id="jobList">Loading…</div></div>
+</section>
+
+<section id="account" class="screen">
+<div class="card" id="authCard"><h2>Provider sign in</h2>
+<label>Email</label><input id="email" type="email"><label>Password</label><input id="password" type="password">
+<br><button id="login">Sign in</button><hr>
+<h3>Create provider account</h3><label>Business name</label><input id="regBusiness">
+<label>Email</label><input id="regEmail" type="email"><label>Password</label><input id="regPassword" type="password">
+<br><button id="register" class="secondary">Create provider account</button></div>
+<div id="loggedCard" style="display:none" class="card"><h2>Account</h2><p id="who"></p><button id="logout" class="secondary">Sign out</button></div>
+</section>
+</main><div id="error"></div>
+<script>
+const $=id=>document.getElementById(id);
+const state={states:[],categories:[],services:[]};
+function show(id){document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));$(id).classList.add("active")}
+function error(e){const el=$("error");el.textContent=e.message||String(e);el.style.display="block";setTimeout(()=>el.style.display="none",5000)}
+function logged(){return !!localStorage.getItem("naijahelp_provider_token")}
+function tokenize(){localStorage.setItem("naijahelp_token",localStorage.getItem("naijahelp_provider_token")||"")}
+function refreshAccount(){
+ $("accountBtn").textContent=logged()?"Account":"Sign in";
+ $("authCard").style.display=logged()?"none":"block";$("loggedCard").style.display=logged()?"block":"none";
+ $("who").textContent=localStorage.getItem("naijahelp_provider_email")||"Signed in";
+}
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=async()=>{show(b.dataset.go);if(b.dataset.go==="requests")loadRequests();if(b.dataset.go==="jobs")loadJobs();if(b.dataset.go==="setup")loadSetup()});
+$("accountBtn").onclick=()=>show("account");
+
+async function boot(){
+ try{
+  state.states=await NaijaHelpAPI.states(); state.categories=await NaijaHelpAPI.categories();
+  state.services=state.categories.flatMap(c=>c.services);
+  $("services").innerHTML=state.services.map(s=>`<label class="check"><input type="checkbox" value="${s.id}" data-service> ${s.name}</label>`).join("");
+  $("states").innerHTML=state.states.map(s=>`<label class="check"><input type="checkbox" value="${s.id}" data-state> ${s.name}</label>`).join("");
+  refreshAccount(); if(logged()){tokenize();loadSetup();loadRequests();loadJobs()}
+ }catch(e){error(e)}
+}
+async function loadSetup(){
+ if(!logged()) return;
+ try{
+  const p=await NaijaHelpAPI.providerProfile();
+  if(p){$("businessName").value=p.businessName||"";$("bio").value=p.bio||""}
+ }catch(e){}
+}
+$("saveProfile").onclick=async()=>{
+ try{
+  tokenize();
+  const serviceIds=[...document.querySelectorAll("[data-service]:checked")].map(x=>x.value);
+  const stateIds=[...document.querySelectorAll("[data-state]:checked")].map(x=>x.value);
+  const p=await NaijaHelpAPI.updateProvider({businessName:$("businessName").value,bio:$("bio").value,serviceIds,stateIds});
+  alert("Provider profile saved. Verification status: "+p.verificationStatus);
+  loadRequests();
+ }catch(e){error(e)}
+};
+async function loadRequests(){
+ if(!logged()){$("requestList").innerHTML="Sign in first.";return}
+ try{
+  tokenize(); const rs=await NaijaHelpAPI.providerRequests();
+  $("requestSummary").textContent=`${rs.length} open request(s) currently available.`;
+  $("requestList").innerHTML=rs.length?rs.map(r=>`<div class="req"><h3>${r.title}</h3><span class="status">${r.status}</span><p>${r.description}</p><p class="muted">${r.service?.name||""}</p>
+  <label>Your quote (₦)</label><input id="amount-${r.id}" type="number" min="1" placeholder="Enter your price">
+  <label>Note</label><input id="note-${r.id}" placeholder="Optional message to customer">
+  <br><button onclick="quote('${r.id}')">Send quote</button></div>`).join(""):"<p class='muted'>No matching open requests yet.</p>";
+ }catch(e){error(e)}
+}
+window.quote=async id=>{
+ try{const amount=Number($("amount-"+id).value);const note=$("note-"+id).value;if(!amount)throw new Error("Enter a quote amount.");await NaijaHelpAPI.quote(id,{amount,note});alert("Quote sent.");loadRequests()}catch(e){error(e)}
+};
+async function loadJobs(){
+ if(!logged()){$("jobList").innerHTML="Sign in first.";return}
+ try{
+  tokenize();const js=await NaijaHelpAPI.providerJobs();
+  $("jobList").innerHTML=js.length?js.map(b=>`<div class="req"><h3>${b.request?.title||"Job"}</h3><span class="status">${b.status}</span><p>Agreed: ₦${Number(b.agreedAmount).toLocaleString()}</p>
+  ${b.status==="CONFIRMED"?`<button onclick="jobStatus('${b.id}','IN_PROGRESS')">Start job</button>`:""}
+  ${b.status==="IN_PROGRESS"?`<button class="success" onclick="jobStatus('${b.id}','COMPLETED')">Mark completed</button>`:""}</div>`).join(""):"<p class='muted'>No accepted jobs yet.</p>";
+ }catch(e){error(e)}
+}
+window.jobStatus=async(id,status)=>{try{await NaijaHelpAPI.bookingStatus(id,status);loadJobs()}catch(e){error(e)}};
+
+$("login").onclick=async()=>{
+ try{const r=await NaijaHelpAPI.login({email:$("email").value,password:$("password").value});if(r.user.role!=="PROVIDER")throw new Error("This account is not a provider account.");localStorage.setItem("naijahelp_provider_token",r.token);localStorage.setItem("naijahelp_provider_email",r.user.email);tokenize();refreshAccount();show("dashboard");loadSetup();loadRequests();loadJobs()}catch(e){error(e)}
+};
+$("register").onclick=async()=>{
+ try{const r=await NaijaHelpAPI.register({email:$("regEmail").value,password:$("regPassword").value,role:"PROVIDER",businessName:$("regBusiness").value});localStorage.setItem("naijahelp_provider_token",r.token);localStorage.setItem("naijahelp_provider_email",r.user.email);tokenize();refreshAccount();show("setup")}catch(e){error(e)}
+};
+$("logout").onclick=()=>{localStorage.removeItem("naijahelp_provider_token");localStorage.removeItem("naijahelp_provider_email");localStorage.removeItem("naijahelp_token");refreshAccount();show("dashboard")};
+boot();
+</script>
+</body></html>

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NaijaHelp — Admin</title><script src="js/api.js"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#f3f4f6;color:#111827}
+header{background:#111827;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+.logo{font-weight:800;font-size:20px}.pill{border:0;border-radius:999px;padding:8px 12px;background:#fff;color:#111827}
+main{max-width:1150px;margin:auto;padding:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:18px;margin-bottom:16px}
+.metric{font-size:28px;font-weight:800}.muted{color:#6b7280}
+button{padding:9px 12px;border:0;border-radius:9px;background:#111827;color:#fff;font-weight:700;cursor:pointer;margin:2px}
+button.good{background:#166534}button.bad{background:#991b1b}button.secondary{background:#e5e7eb;color:#111827}
+nav{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.screen{display:none}.screen.active{display:block}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:10px;border-bottom:1px solid #e5e7eb;vertical-align:top}
+.badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;font-size:11px;font-weight:800}
+input{padding:11px;border:1px solid #d1d5db;border-radius:9px;width:100%}
+#error{position:fixed;bottom:16px;left:16px;right:16px;background:#991b1b;color:#fff;padding:12px;border-radius:10px;display:none;z-index:20}
+</style></head><body>
+<header><div class="logo">NaijaHelp Admin 🇳🇬</div><button class="pill" id="accountBtn">Sign in</button></header>
+<main>
+<nav>
+<button data-go="dashboard">Dashboard</button><button data-go="providers">Providers</button>
+<button data-go="users">Users</button><button data-go="requests">Requests</button><button data-go="account">Account</button>
+</nav>
+
+<section id="dashboard" class="screen active"><div class="card"><h1>Operations Dashboard</h1><p class="muted">Monitor the marketplace across Nigeria.</p>
+<div class="grid">
+<div class="card"><div class="metric" id="mUsers">—</div><div class="muted">Users</div></div>
+<div class="card"><div class="metric" id="mProviders">—</div><div class="muted">Providers</div></div>
+<div class="card"><div class="metric" id="mVerified">—</div><div class="muted">Verified providers</div></div>
+<div class="card"><div class="metric" id="mRequests">—</div><div class="muted">Requests</div></div>
+<div class="card"><div class="metric" id="mBookings">—</div><div class="muted">Bookings</div></div>
+</div></div></section>
+
+<section id="providers" class="screen"><div class="card"><h2>Provider verification</h2><p class="muted">Review provider profiles before allowing them into verified search.</p><div id="providerTable">Loading…</div></div></section>
+<section id="users" class="screen"><div class="card"><h2>Users</h2><div id="userTable">Loading…</div></div></section>
+<section id="requests" class="screen"><div class="card"><h2>Marketplace requests</h2><div id="requestTable">Loading…</div></div></section>
+
+<section id="account" class="screen"><div class="card" id="loginCard"><h2>Admin sign in</h2>
+<p class="muted">Use an ADMIN account created in the database.</p>
+<input id="email" type="email" placeholder="Admin email"><br><br><input id="password" type="password" placeholder="Password"><br><br>
+<button id="login">Sign in</button></div>
+<div class="card" id="loggedCard" style="display:none"><h2>Admin session</h2><p id="who"></p><button id="logout" class="secondary">Sign out</button></div></section>
+</main><div id="error"></div>
+<script>
+const $=id=>document.getElementById(id);
+function show(id){document.querySelectorAll(".screen").forEach(x=>x.classList.remove("active"));$(id).classList.add("active");}
+function err(e){const x=$("error");x.textContent=e.message||e;x.style.display="block";setTimeout(()=>x.style.display="none",5000)}
+function auth(){return !!localStorage.getItem("naijahelp_admin_token")}
+function syncToken(){localStorage.setItem("naijahelp_token",localStorage.getItem("naijahelp_admin_token")||"")}
+async function boot(){if(auth()){syncToken();refresh();loadStats();loadProviders();loadUsers();loadRequests()}else refresh()}
+function refresh(){$("loginCard").style.display=auth()?"none":"block";$("loggedCard").style.display=auth()?"block":"none";$("accountBtn").textContent=auth()?"Admin":"Sign in";$("who").textContent=localStorage.getItem("naijahelp_admin_email")||""}
+document.querySelectorAll("[data-go]").forEach(b=>b.onclick=()=>{show(b.dataset.go);if(!auth())return;if(b.dataset.go==="providers")loadProviders();if(b.dataset.go==="users")loadUsers();if(b.dataset.go==="requests")loadRequests();if(b.dataset.go==="dashboard")loadStats()});
+$("accountBtn").onclick=()=>show("account");
+async function loadStats(){try{syncToken();const s=await NaijaHelpAPI.adminStats();$("mUsers").textContent=s.users;$("mProviders").textContent=s.providers;$("mVerified").textContent=s.verifiedProviders;$("mRequests").textContent=s.requests;$("mBookings").textContent=s.bookings}catch(e){err(e)}}
+async function loadProviders(){try{syncToken();const ps=await NaijaHelpAPI.adminProviders();$("providerTable").innerHTML=`<table><tr><th>Business</th><th>Email</th><th>Services</th><th>Status</th><th>Action</th></tr>`+ps.map(p=>`<tr><td><b>${p.businessName}</b><br><span class="muted">${p.bio||""}</span></td><td>${p.user.email}</td><td>${p.services.map(x=>x.service.name).join(", ")||"—"}</td><td><span class="badge">${p.verificationStatus}</span></td><td>${p.verificationStatus!=="VERIFIED"?`<button class="good" onclick="verify('${p.id}','VERIFIED')">Verify</button>`:""} ${p.verificationStatus!=="REJECTED"?`<button class="bad" onclick="verify('${p.id}','REJECTED')">Reject</button>`:""} <button class="secondary" onclick="verify('${p.id}','PENDING')">Pending</button></td></tr>`).join("")+"</table>"}catch(e){err(e)}}
+window.verify=async(id,status)=>{try{syncToken();await NaijaHelpAPI.verifyProvider(id,status);loadProviders();loadStats()}catch(e){err(e)}};
+async function loadUsers(){try{syncToken();const us=await NaijaHelpAPI.adminUsers();$("userTable").innerHTML=`<table><tr><th>Email</th><th>Role</th><th>Profile</th><th>Created</th></tr>`+us.map(u=>`<tr><td>${u.email}</td><td><span class="badge">${u.role}</span></td><td>${u.customer?.fullName||u.provider?.businessName||""}</td><td>${new Date(u.createdAt).toLocaleString()}</td></tr>`).join("")+"</table>"}catch(e){err(e)}}
+async function loadRequests(){try{syncToken();const rs=await NaijaHelpAPI.adminRequests();$("requestTable").innerHTML=`<table><tr><th>Request</th><th>Customer</th><th>Service</th><th>Status</th><th>Action</th></tr>`+rs.map(r=>`<tr><td><b>${r.title}</b><br>${r.description}</td><td>${r.customer.email}</td><td>${r.service.name}</td><td><span class="badge">${r.status}</span></td><td><button class="secondary" onclick="cancelReq('${r.id}')">Cancel</button></td></tr>`).join("")+"</table>"}catch(e){err(e)}}
+window.cancelReq=async id=>{try{syncToken();await NaijaHelpAPI.adminRequestStatus(id,"CANCELLED");loadRequests();loadStats()}catch(e){err(e)}};
+$("login").onclick=async()=>{try{const r=await NaijaHelpAPI.login({email:$("email").value,password:$("password").value});if(r.user.role!=="ADMIN")throw new Error("This account is not an admin account.");localStorage.setItem("naijahelp_admin_token",r.token);localStorage.setItem("naijahelp_admin_email",r.user.email);syncToken();refresh();show("dashboard");loadStats();loadProviders();loadUsers();loadRequests()}catch(e){err(e)}};
+$("logout").onclick=()=>{localStorage.removeItem("naijahelp_admin_token");localStorage.removeItem("naijahelp_admin_email");localStorage.removeItem("naijahelp_token");refresh();show("account")};
+boot();
+</script></body></html>

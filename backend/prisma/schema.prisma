@@ -1,0 +1,302 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole { CUSTOMER PROVIDER ADMIN }
+enum UserStatus { ACTIVE SUSPENDED DEACTIVATED }
+enum RequestStatus { DRAFT OPEN QUOTED BOOKED IN_PROGRESS COMPLETED CANCELLED DISPUTED }
+enum QuoteStatus { PENDING ACCEPTED DECLINED EXPIRED }
+enum BookingStatus { CONFIRMED IN_PROGRESS COMPLETED CANCELLED }
+enum ServiceAreaType { STATE LGA AREA }
+enum VerificationStatus { PENDING VERIFIED REJECTED }
+enum PaymentStatus { PENDING REQUIRES_ACTION PAID FAILED REFUNDED CANCELLED }
+enum NotificationType { QUOTE_RECEIVED QUOTE_ACCEPTED BOOKING_UPDATE MESSAGE JOB_STARTED JOB_COMPLETED REVIEW_REMINDER VERIFICATION_RESULT SECURITY PAYMENT }
+enum ReportStatus { OPEN UNDER_REVIEW RESOLVED DISMISSED }
+enum ReportTargetType { USER PROVIDER REQUEST BOOKING REVIEW MESSAGE }
+enum VerificationDocumentType { IDENTITY BUSINESS_LICENSE ADDRESS_PROOF OTHER }
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  phone        String?    @unique
+  passwordHash String
+  role         UserRole   @default(CUSTOMER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  customer     CustomerProfile?
+  provider     ProviderProfile?
+  requests     ServiceRequest[] @relation("CustomerRequests")
+  sentMessages Message[] @relation("SentMessages")
+  reviews      Review[] @relation("ReviewAuthor")
+  notifications Notification[]
+  reports      Report[] @relation("Reporter")
+  auditLogs    AdminAuditLog[] @relation("AdminAuditLogs")
+}
+
+model CustomerProfile {
+  id        String @id @default(cuid())
+  userId    String @unique
+  fullName  String
+  createdAt DateTime @default(now())
+  user      User @relation(fields:[userId], references:[id], onDelete: Cascade)
+}
+
+model ProviderProfile {
+  id                 String @id @default(cuid())
+  userId             String @unique
+  businessName       String
+  bio                String?
+  verificationStatus VerificationStatus @default(PENDING)
+  rating             Float @default(0)
+  reviewCount        Int @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  user               User @relation(fields:[userId], references:[id], onDelete: Cascade)
+  services           ProviderService[]
+  serviceAreas       ProviderServiceArea[]
+  quotes             Quote[]
+  bookings           Booking[]
+  reviews            Review[]
+  documents          VerificationDocument[]
+}
+
+model Category {
+  id       String @id @default(cuid())
+  name     String @unique
+  services Service[]
+}
+
+model Service {
+  id         String @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category @relation(fields:[categoryId], references:[id], onDelete: Cascade)
+  providers  ProviderService[]
+  requests   ServiceRequest[]
+  @@unique([categoryId, name])
+}
+
+model State {
+  id          String @id @default(cuid())
+  name        String @unique
+  code        String @unique
+  lgas        LGA[]
+  serviceAreas ProviderServiceArea[]
+}
+
+model LGA {
+  id          String @id @default(cuid())
+  name        String
+  stateId     String
+  state       State @relation(fields:[stateId], references:[id], onDelete: Cascade)
+  areas       Area[]
+  serviceAreas ProviderServiceArea[]
+  @@unique([stateId, name])
+}
+
+model Area {
+  id          String @id @default(cuid())
+  name        String
+  lgaId       String
+  lga         LGA @relation(fields:[lgaId], references:[id], onDelete: Cascade)
+  serviceAreas ProviderServiceArea[]
+  @@unique([lgaId, name])
+}
+
+model ProviderService {
+  id         String @id @default(cuid())
+  providerId String
+  serviceId  String
+  provider   ProviderProfile @relation(fields:[providerId], references:[id], onDelete: Cascade)
+  service    Service @relation(fields:[serviceId], references:[id], onDelete: Cascade)
+  @@unique([providerId, serviceId])
+}
+
+model ProviderServiceArea {
+  id         String @id @default(cuid())
+  providerId String
+  stateId    String?
+  lgaId      String?
+  areaId     String?
+  areaType   ServiceAreaType
+  provider   ProviderProfile @relation(fields:[providerId], references:[id], onDelete: Cascade)
+  state      State? @relation(fields:[stateId], references:[id], onDelete: Cascade)
+  lga        LGA? @relation(fields:[lgaId], references:[id], onDelete: Cascade)
+  area       Area? @relation(fields:[areaId], references:[id], onDelete: Cascade)
+  @@index([stateId])
+  @@index([lgaId])
+  @@index([areaId])
+}
+
+model ServiceRequest {
+  id          String @id @default(cuid())
+  customerId  String
+  serviceId   String
+  stateId     String?
+  lgaId       String?
+  areaId      String?
+  title       String
+  description String
+  budgetMin   Int?
+  budgetMax   Int?
+  status      RequestStatus @default(OPEN)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    User @relation("CustomerRequests", fields:[customerId], references:[id], onDelete: Cascade)
+  service     Service @relation(fields:[serviceId], references:[id])
+  quotes      Quote[]
+  booking     Booking?
+  messages    Message[]
+  reports     Report[]
+  @@index([customerId, status])
+  @@index([serviceId, stateId, lgaId, areaId])
+}
+
+model Quote {
+  id         String @id @default(cuid())
+  requestId  String
+  providerId String
+  amount     Int
+  note       String?
+  status     QuoteStatus @default(PENDING)
+  createdAt  DateTime @default(now())
+  request    ServiceRequest @relation(fields:[requestId], references:[id], onDelete: Cascade)
+  provider   ProviderProfile @relation(fields:[providerId], references:[id], onDelete: Cascade)
+  @@unique([requestId, providerId])
+}
+
+model Booking {
+  id           String @id @default(cuid())
+  requestId    String @unique
+  providerId   String
+  agreedAmount Int
+  status       BookingStatus @default(CONFIRMED)
+  scheduledAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  request      ServiceRequest @relation(fields:[requestId], references:[id], onDelete: Cascade)
+  provider     ProviderProfile @relation(fields:[providerId], references:[id])
+  payment      Payment?
+  reviews      Review[]
+  reports      Report[]
+}
+
+model Message {
+  id         String @id @default(cuid())
+  requestId  String
+  senderId   String
+  body       String
+  createdAt  DateTime @default(now())
+  request    ServiceRequest @relation(fields:[requestId], references:[id], onDelete: Cascade)
+  sender     User @relation("SentMessages", fields:[senderId], references:[id])
+  @@index([requestId, createdAt])
+}
+
+model Review {
+  id         String @id @default(cuid())
+  bookingId  String
+  authorId   String
+  providerId String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  author     User @relation("ReviewAuthor", fields:[authorId], references:[id])
+  provider   ProviderProfile @relation(fields:[providerId], references:[id])
+  booking    Booking @relation(fields:[bookingId], references:[id], onDelete: Cascade)
+  reports    Report[]
+  @@unique([bookingId, authorId])
+}
+
+model Payment {
+  id            String @id @default(cuid())
+  bookingId     String @unique
+  payerId       String
+  payeeId       String
+  amount        Int
+  fee           Int @default(0)
+  currency      String @default("NGN")
+  status        PaymentStatus @default(PENDING)
+  provider      String?
+  reference     String? @unique
+  gatewayData   Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  booking       Booking @relation(fields:[bookingId], references:[id], onDelete: Cascade)
+  events        PaymentEvent[]
+}
+
+model PaymentEvent {
+  id        String @id @default(cuid())
+  paymentId String
+  eventType String
+  reference String?
+  payload   Json
+  createdAt DateTime @default(now())
+  payment   Payment @relation(fields:[paymentId], references:[id], onDelete: Cascade)
+  @@index([paymentId, createdAt])
+}
+
+model Notification {
+  id        String @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User @relation(fields:[userId], references:[id], onDelete: Cascade)
+  @@index([userId, readAt, createdAt])
+}
+
+model Report {
+  id          String @id @default(cuid())
+  reporterId  String
+  targetType  ReportTargetType
+  targetId    String
+  reason      String
+  details     String?
+  status      ReportStatus @default(OPEN)
+  adminNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  reporter    User @relation("Reporter", fields:[reporterId], references:[id], onDelete: Cascade)
+  request     ServiceRequest? @relation(fields:[targetRequestId], references:[id], onDelete: SetNull)
+  targetRequestId String?
+  booking     Booking? @relation(fields:[targetBookingId], references:[id], onDelete: SetNull)
+  targetBookingId String?
+  review      Review? @relation(fields:[targetReviewId], references:[id], onDelete: SetNull)
+  targetReviewId String?
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+model VerificationDocument {
+  id           String @id @default(cuid())
+  providerId   String
+  documentType VerificationDocumentType
+  documentUrl  String
+  status       VerificationStatus @default(PENDING)
+  reviewerNote String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  provider     ProviderProfile @relation(fields:[providerId], references:[id], onDelete: Cascade)
+  @@index([providerId, status])
+}
+
+model AdminAuditLog {
+  id         String @id @default(cuid())
+  adminId    String
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  admin      User @relation("AdminAuditLogs", fields:[adminId], references:[id])
+  @@index([createdAt])
+}

@@ -1,0 +1,52 @@
+projects:
+  - name: naijahelp
+    environments:
+      - name: staging
+        services:
+          - type: web
+            name: naijahelp-staging
+            runtime: docker
+            plan: starter
+            dockerfilePath: ./Dockerfile
+            dockerContext: .
+            healthCheckPath: /health
+            autoDeploy: false
+            envVars:
+              - key: NODE_ENV
+                value: staging
+              - key: PORT
+                value: "4000"
+              - key: DATABASE_URL
+                fromDatabase:
+                  name: naijahelp-staging-db
+                  property: connectionString
+              - key: JWT_SECRET
+                generateValue: true
+              - key: CORS_ORIGINS
+                fromService:
+                  name: naijahelp-staging
+                  type: web
+                  envVarKey: RENDER_EXTERNAL_URL
+              - key: PUBLIC_APP_URL
+                fromService:
+                  name: naijahelp-staging
+                  type: web
+                  envVarKey: RENDER_EXTERNAL_URL
+              - key: PAYSTACK_CALLBACK_URL
+                fromService:
+                  name: naijahelp-staging
+                  type: web
+                  envVarKey: RENDER_EXTERNAL_URL
+              - key: PAYSTACK_SECRET_KEY
+                sync: false
+              - key: SEED_DEMO
+                value: "false"
+              - key: DEMO_PASSWORD
+                sync: false
+
+        databases:
+          - name: naijahelp-staging-db
+            plan: basic-256mb
+            postgresMajorVersion: "16"
+            databaseName: naijahelp
+            user: naijahelp

@@ -1,0 +1,38 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: naijahelp
+      POSTGRES_USER: naijahelp
+      POSTGRES_PASSWORD: naijahelp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U naijahelp -d naijahelp"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - naijahelp_pg:/var/lib/postgresql/data
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://naijahelp:naijahelp@postgres:5432/naijahelp?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in your environment}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:4000}
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      PAYSTACK_CALLBACK_URL: ${PAYSTACK_CALLBACK_URL:-http://localhost:4000/payment-callback.html}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:4000}
+      SEED_DEMO: ${SEED_DEMO:-false}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+    ports:
+      - "4000:4000"
+
+volumes:
+  naijahelp_pg:

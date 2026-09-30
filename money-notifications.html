@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NaijaHelp — Payments & Notifications</title><script src="js/api.js"></script>
+<style>
+body{margin:0;font-family:system-ui;background:#f6f7f9;color:#111827}main{max-width:850px;margin:auto;padding:20px}
+.card{background:white;border:1px solid #e5e7eb;border-radius:16px;padding:18px;margin-bottom:16px}
+button{background:#111827;color:white;border:0;border-radius:9px;padding:10px 14px;font-weight:700}.muted{color:#6b7280}
+</style></head><body><main>
+<div class="card"><h1>NaijaHelp Money & Notifications</h1>
+<p class="muted">This is the integration layer. A live gateway is deliberately not hard-coded yet.</p>
+<h2>Payment</h2><p>Payment records use NGN and track PENDING → REQUIRES_ACTION → PAID / FAILED / REFUNDED / CANCELLED.</p>
+<p>Gateway integration will return a checkout URL/reference when connected.</p>
+<h2>Notifications</h2><div id="notes">Sign in to load notifications.</div></div>
+<script>
+(async()=>{try{if(localStorage.getItem("naijahelp_token")){const n=await NaijaHelpAPI.notifications();document.getElementById("notes").innerHTML=n.length?n.map(x=>`<div class="card"><b>${x.title}</b><p>${x.body}</p><small>${new Date(x.createdAt).toLocaleString()}</small></div>`).join(""):"No notifications yet."}}catch(e){document.getElementById("notes").textContent=e.message}})();
+</script></main></body></html>
