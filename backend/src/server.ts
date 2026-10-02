@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
@@ -122,8 +122,7 @@ const publicDir=process.env.PUBLIC_DIR||path.resolve(process.cwd(),"public");
 app.use(express.static(publicDir,{index:"index.html"}));
 app.get(/^(?!\/api\/|\/health|\/socket\.io).*/,(req,res,next)=>{ if(req.path.startsWith("/api/")||req.path==="/health"||req.path.startsWith("/socket.io")) return next(); res.sendFile(path.join(publicDir,"index.html"),err=>err&&next(err)); });
 
-app.use((err:any,_req:any,res:any,_next:any)=>{console.error(err);if(!res.headersSent)res.status(500).json({error:"Internal server error"});});
-
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 httpServer.listen(PORT,()=>console.log(`NaijaHelp API v1.4.0-staging running on http://localhost:${PORT}`));
 async function shutdown(signal:string){ console.log(`${signal}: shutting down`); try { await prisma.$disconnect(); } finally { httpServer.close(()=>process.exit(0)); setTimeout(()=>process.exit(1),10000).unref(); } }
 process.on("SIGTERM",()=>void shutdown("SIGTERM"));
